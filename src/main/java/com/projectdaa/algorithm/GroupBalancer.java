@@ -1,7 +1,6 @@
 package com.projectdaa.algorithm;
 
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -11,120 +10,121 @@ import com.projectdaa.model.Student;
 public class GroupBalancer {
 
     public Map<Integer, List<Student>> balanceGroups(List<Student> allStudents, int numGroups) {
-        // 1. Run K-Means
+        // 1. Run K-Means for clustering analysis
         KMeansClustering kMeans = new KMeansClustering(3, allStudents);
         kMeans.run();
 
-        // 2. Separate into clusters
-        List<Student> high = new ArrayList<>();
-        List<Student> med = new ArrayList<>();
-        List<Student> low = new ArrayList<>();
-
+        // 2. Separate students by cluster AND expert status
+        List<Student> cluster0 = new ArrayList<>(); // Low performers
+        List<Student> cluster1 = new ArrayList<>(); // Medium performers
+        List<Student> cluster2 = new ArrayList<>(); // High performers
+        
         for (Student s : allStudents) {
-            if (s.isExpert()) {
-                high.add(s); // Force expert to high bucket for distribution
-            } else if (s.getClusterId() == 2) high.add(s);
-            else if (s.getClusterId() == 1) med.add(s);
-            else low.add(s);
+            if (s.getClusterId() == 0) cluster0.add(s);
+            else if (s.getClusterId() == 1) cluster1.add(s);
+            else cluster2.add(s);
         }
 
-        // Sort within clusters by score descending (optional, but helps deterministic behavior)
-        Comparator<Student> scoreComp = (s1, s2) -> Double.compare(getScore(s2), getScore(s1));
-        high.sort(scoreComp);
-        med.sort(scoreComp);
-        low.sort(scoreComp);
+        // Sort each cluster by score (ascending for balanced distribution)
+        cluster0.sort((a, b) -> Double.compare(calculateScore(a), calculateScore(b)));
+        cluster1.sort((a, b) -> Double.compare(calculateScore(a), calculateScore(b)));
+        cluster2.sort((a, b) -> Double.compare(calculateScore(a), calculateScore(b)));
 
         // 3. Initialize Groups
         Map<Integer, List<Student>> groups = new HashMap<>();
         double[] groupScores = new double[numGroups];
+        int[] clusterCount = new int[numGroups]; // Track cluster 2 (high) count per group
+        
         for (int i = 0; i < numGroups; i++) {
             groups.put(i, new ArrayList<>());
             groupScores[i] = 0.0;
+            clusterCount[i] = 0;
         }
 
-        // 4. Distribute - High, then Med, then Low
-        distributeCluster(high, groups, groupScores, numGroups);
-        distributeCluster(med, groups, groupScores, numGroups);
-        distributeCluster(low, groups, groupScores, numGroups);
+        // 4. STRATEGY: Distribute HIGH performers (Cluster 2) FIRST using zigzag
+        // This ensures each group gets balanced mix of high performers
+        distributeZigZag(cluster2, groups, groupScores, clusterCount, numGroups);
+
+        // 5. Then distribute MEDIUM performers (Cluster 1) to balance
+        distributeBalanced(cluster1, groups, groupScores, numGroups);
+
+        // 6. Finally distribute LOW performers (Cluster 0) to fill gaps
+        distributeBalanced(cluster0, groups, groupScores, numGroups);
 
         return groups;
     }
 
-    private void distributeCluster(List<Student> clusterStudents, Map<Integer, List<Student>> groups, double[] groupScores, int numGroups) {
-        int studentIdx = 0;
-        while (studentIdx < clusterStudents.size()) {
-            // Take a batch of students (up to numGroups)
-            int batchSize = Math.min(numGroups, clusterStudents.size() - studentIdx);
-            List<Student> batch = new ArrayList<>();
-            for (int i = 0; i < batchSize; i++) {
-                batch.add(clusterStudents.get(studentIdx + i));
-            }
-
-            // Create Cost Matrix
-            // Rows: Students in batch
-            // Cols: Groups
-            // Cost[i][j] = (groupScores[j] + studentScore)^2
-            // We want to minimize the sum of squares of the resulting group scores to keep them balanced.
+    /**
+     * ZigZag distribution: 1, 2, 3, 3, 2, 1, 1, 2, 3...
+     * This prevents high performers from clustering together
+     */
+    private void distributeZigZag(List<Student> students, Map<Integer, List<Student>> groups, 
+                                   double[] groupScores, int[] clusterCount, int numGroups) {
+        int idx = 0;
+        boolean forward = true;
+        
+        for (Student s : students) {
+            groups.get(idx).add(s);
+            groupScores[idx] += calculateScore(s);
+            clusterCount[idx]++;
             
-            double[][] costMatrix = new double[batchSize][numGroups];
-            for (int i = 0; i < batchSize; i++) {
-                double sScore = getScore(batch.get(i));
-                for (int j = 0; j < numGroups; j++) {
-                    // We use the square of the new total score as the cost.
-                    // Minimizing sum(new_score^2) is equivalent to minimizing variance.
-                    double newScore = groupScores[j] + sScore;
-                    costMatrix[i][j] = newScore * newScore;
+            // ZigZag pattern
+            if (forward) {
+                idx++;
+                if (idx >= numGroups) {
+                    idx = numGroups - 1;
+                    forward = false;
+                }
+            } else {
+                idx--;
+                if (idx < 0) {
+                    idx = 0;
+                    forward = true;
                 }
             }
-
-            // Solve Hungarian
-            HungarianAlgorithm hungarian = new HungarianAlgorithm(costMatrix);
-            int[] assignment = hungarian.execute();
-
-            // Assign
-            for (int i = 0; i < batchSize; i++) {
-                int groupIdx = assignment[i];
-                if (groupIdx != -1 && groupIdx < numGroups) {
-                    Student s = batch.get(i);
-                    groups.get(groupIdx).add(s);
-                    groupScores[groupIdx] += getScore(s);
-                } else {
-                    // Should not happen if batchSize <= numGroups, unless Hungarian fails or pads weirdly.
-                    // Fallback: assign to group with min score
-                    int minGroup = getMinScoreGroup(groupScores);
-                    Student s = batch.get(i);
-                    groups.get(minGroup).add(s);
-                    groupScores[minGroup] += getScore(s);
-                }
-            }
-
-            studentIdx += batchSize;
         }
     }
 
-    private double getScore(Student s) {
-        if (s.isExpert()) return 1000.0; // Give experts a very high score to prioritize them
-        
-        // Simple weighted score. Since we don't have the normalized values from KMeans accessible here easily 
-        // (unless we store them in Student), we'll do a quick normalization or just use raw values if they are comparable.
-        // User said: IPK (0-4), Grade (0-100?), Activity (0-100?).
-        // Let's normalize roughly: IPK*25, Grade, Activity.
-        // Or better, just sum them if we assume user inputs 0-100 for all or we handle it.
-        // Let's assume inputs are: GPA (0-4.0), Grade (0-100), Activity (0-100).
-        
-        double normGpa = (s.getGpa() / 4.0) * 100;
-        return (normGpa + s.getPreviousGrade() + s.getActivityScore()) / 3.0;
+    /**
+     * Balanced distribution: Always add to group with lowest score
+     */
+    private void distributeBalanced(List<Student> students, Map<Integer, List<Student>> groups, 
+                                     double[] groupScores, int numGroups) {
+        for (Student s : students) {
+            int targetGroup = findLowestScoreGroup(groupScores, numGroups);
+            groups.get(targetGroup).add(s);
+            groupScores[targetGroup] += calculateScore(s);
+        }
     }
 
-    private int getMinScoreGroup(double[] scores) {
+    private double calculateScore(Student s) {
+        // Normalize all components to 0-100 scale
+        double normGpa = (s.getGpa() / 4.0) * 100;
+        double normGrade = s.getPreviousGrade(); // Already 0-100
+        double normActivity = s.getActivityScore(); // Already 0-100
+        
+        // Weighted average: GPA (40%), Previous Grade (35%), Activity (25%)
+        double baseScore = (normGpa * 0.40) + (normGrade * 0.35) + (normActivity * 0.25);
+        
+        // Expert gets multiplier to ensure they're distributed well
+        if (s.isExpert()) {
+            baseScore = baseScore * 1.20; // 20% boost for better distribution
+        }
+        
+        return baseScore;
+    }
+
+    private int findLowestScoreGroup(double[] groupScores, int numGroups) {
         int minIdx = 0;
-        double minVal = scores[0];
-        for(int i=1; i<scores.length; i++) {
-            if(scores[i] < minVal) {
-                minVal = scores[i];
+        double minScore = groupScores[0];
+        
+        for (int i = 1; i < numGroups; i++) {
+            if (groupScores[i] < minScore) {
+                minScore = groupScores[i];
                 minIdx = i;
             }
         }
+        
         return minIdx;
     }
 }

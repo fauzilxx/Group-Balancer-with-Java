@@ -98,10 +98,18 @@ public class MainView {
         addButton.setOnAction(e -> handleAddStudent());
 
         Button importButton = new Button("Import Excel");
-        styleButton(importButton, "#2E7D32", "white"); // Green Button
+        styleButton(importButton, "#388E3C", "white"); // Green Button
         importButton.setOnAction(e -> handleImportExcel());
 
-        inputBox.getChildren().addAll(nameField, gpaField, prevGradeField, activityField, expertCheckBox, addButton, importButton);
+        Button editButton = new Button("Edit Selected");
+        styleButton(editButton, "#FF9800", "white"); // Orange Button
+        editButton.setOnAction(e -> handleEditStudent());
+
+        Button deleteButton = new Button("Delete Selected");
+        styleButton(deleteButton, "#D32F2F", "white"); // Red Button
+        deleteButton.setOnAction(e -> handleDeleteStudent());
+
+        inputBox.getChildren().addAll(nameField, gpaField, prevGradeField, activityField, expertCheckBox, addButton, editButton, deleteButton, importButton);
 
         // 2. Table View
         studentTable = new TableView<>();
@@ -216,6 +224,35 @@ public class MainView {
         } catch (NumberFormatException e) {
             showAlert("Error", "Please enter valid numeric values for GPA, Grade, and Activity.");
         }
+    }
+
+    private void handleEditStudent() {
+        Student selected = studentTable.getSelectionModel().getSelectedItem();
+        if (selected == null) {
+            showAlert("Warning", "Please select a student to edit.");
+            return;
+        }
+
+        // Populate fields with selected student data
+        nameField.setText(selected.getName());
+        gpaField.setText(String.valueOf(selected.getGpa()));
+        prevGradeField.setText(String.valueOf(selected.getPreviousGrade()));
+        activityField.setText(String.valueOf(selected.getActivityScore()));
+        expertCheckBox.setSelected(selected.isExpert());
+
+        // Remove the old entry (will be re-added when user clicks Add)
+        studentList.remove(selected);
+    }
+
+    private void handleDeleteStudent() {
+        Student selected = studentTable.getSelectionModel().getSelectedItem();
+        if (selected == null) {
+            showAlert("Warning", "Please select a student to delete.");
+            return;
+        }
+
+        studentList.remove(selected);
+        clearFields();
     }
 
     private void handleImportExcel() {
