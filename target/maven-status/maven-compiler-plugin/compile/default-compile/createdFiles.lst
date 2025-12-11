@@ -1,0 +1,6 @@
+com\projectdaa\algorithm\HungarianAlgorithm.class
+com\projectdaa\model\Student.class
+com\projectdaa\view\MainView.class
+com\projectdaa\algorithm\KMeansClustering.class
+com\projectdaa\algorithm\GroupBalancer.class
+com\projectdaa\main\MainApp.class
