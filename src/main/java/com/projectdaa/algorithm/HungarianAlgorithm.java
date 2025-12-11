@@ -31,15 +31,31 @@ public class HungarianAlgorithm {
                 // But usually padding with 0 is fine for dummy workers/jobs.
             }
         }
-        labelByWorker = new double[this.dim];
-        labelByJob = new double[this.dim];
-        minSlackWorkerByJob = new int[this.dim];
-        minSlackValueByJob = new double[this.dim];
-        committedWorkers = new boolean[this.dim];
-        parentWorkerByJob = new int[this.dim];
-        matchJobByWorker = new int[this.dim];
+        labelByWorker = new double[
+            this.dim
+        ];
+        labelByJob = new double[
+            this.dim
+        ];
+        minSlackWorkerByJob = new int[
+            this.dim
+        ];
+        minSlackValueByJob = new double[
+            this.dim
+        ];
+        committedWorkers = new boolean[
+            this.dim
+        ];
+        parentWorkerByJob = new int[
+            this.dim
+        ];
+        matchJobByWorker = new int[
+            this.dim
+        ];
         Arrays.fill(matchJobByWorker, -1);
-        matchWorkerByJob = new int[this.dim];
+        matchWorkerByJob = new int[
+            this.dim
+        ];
         Arrays.fill(matchWorkerByJob, -1);
     }
 

@@ -66,7 +66,7 @@ public class MainView {
         root.setStyle("-fx-background-color: #E3F2FD;"); // Light Blue Background
 
         // --- Top: Header ---
-        Label headerLabel = new Label("Optimal Study Group Generator");
+        Label headerLabel = new Label("EquiTeam");
         headerLabel.setFont(Font.font("Segoe UI", FontWeight.BOLD, 28));
         headerLabel.setStyle("-fx-text-fill: #1565C0;"); // Dark Blue Text
         BorderPane.setAlignment(headerLabel, Pos.CENTER);
